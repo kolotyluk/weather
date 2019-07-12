@@ -1,13 +1,21 @@
 package net.kolotyluk.weather;
 
+import java.io.IOException;
+
+import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.ServletException;
-import java.io.IOException;
-import org.eclipse.jetty.server.Server;
+
 import org.eclipse.jetty.server.Request;
+import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.AbstractHandler;
  
+/**
+ * Jetty Handler for Testing
+ * 
+ * @author eric@kolotyluk.net
+ *
+ */
 public class WeatherHandler extends AbstractHandler
 {
     public void handle(String target,
@@ -23,7 +31,7 @@ public class WeatherHandler extends AbstractHandler
     }
  
     /**
-     * usage 
+     * main entry point for Jetty App.
      * @param args
      * @throws Exception
      */

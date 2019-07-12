@@ -74,6 +74,16 @@ The easiest way to test your web app from Maven is to use the jetty-maven-plugin
 Note, while you can run jetty under Java 9 or later, Jetty cannot handle class files newer than Java 8,
 so you will need to build with a target of Java 8.
 
+# Testing the App
+
+## Unit Tests
+
+    mvn clean test
+
+## Integration Tests
+
+    mvn clean verify
+
 # Eclipse IDE
 
 It is recommended you use this project with the [Eclipse IDE](https://www.eclipse.org).
@@ -89,10 +99,30 @@ so you will need to build with a target of Java 8.
 Note: this method seems to have various problems...
 
 1. java.lang.NoClassDefFoundError: org/json/simple/parser/ParseException
-   
 
 ## Running the webapp
 
 When running Jetty from Eclipse, in the run configuration you may have to define the environment variable
 WEATHER_APPID. 
 
+# Editorial Notes
+
+## Details
+
+This demo focuses on structure rather than details. Consequently, such details are left as an exercise
+for the reader.
+
+For example, while it incorporates both Unit and Integration tests,
+it does not go into a lot of detailed coverage or completeness.
+
+Similarly, it does not do UI testing via Selenium (or other tools).
+
+## Performance & Scalability
+
+This demo uses old-style Java EE technology, which does not necessarily have the best
+performance and scalability characteristics. A more modern web app, front-end & back-end,
+would use more performant techniques such as [Reactive](https://www.reactivemanifesto.org/)
+Programming methods.
+
+Frameworks such as [Akka](https://akka.io) tend to be more performant than Java EE,
+delivering better price performance characteristics.

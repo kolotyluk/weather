@@ -3,32 +3,16 @@ package net.kolotyluk.weather;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.Authenticator;
 import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
-import java.net.ProxySelector;
-import java.net.URI;
 import java.net.URL;
-import java.net.URLEncoder;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.time.Duration;
-import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.ServiceConfigurationError;
 import java.util.TimeZone;
-import java.util.function.BinaryOperator;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-//import com.oracle.httpclient;
-
-//import java.net.http.HttpClient;
-//import java.net.http.HttpClient.Redirect;
-//import java.net.http.HttpClient.Version;
-//import java.net.http.HttpRequest;
-//import java.net.http.HttpResponse;
-//import java.net.http.HttpResponse.BodyHandlers;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -36,13 +20,15 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.json.simple.JSONArray; 
-import org.json.simple.JSONObject; 
-import org.json.simple.parser.*; 
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 /**
  * Servlet implementation class WeatherServlet
+ * 
+ * @author eric@kolotyluk.net
  */
 @WebServlet("/weather")
 public class WeatherServlet extends HttpServlet
@@ -51,17 +37,23 @@ public class WeatherServlet extends HttpServlet
 	private static final String WEATHER_APPID = System.getenv().get("WEATHER_APPID");
        
     /**
-     * @throws Exception 
+     * <h1>WeatherServlet Constructor</h1>
+     * Make sure our WEATHER_APPID environment variable is defined so that we can connect
+     * to "http://api.openweathermap.org/data/2.5/weather"
+     * <p>
+     * There are probably better ways to handle this, but for this demo, this suffices.
+     * 
+     * @throws ServiceConfigurationError 
      * @see HttpServlet#HttpServlet()
      */
-    public WeatherServlet() throws Exception {
-    	
+    public WeatherServlet() throws ServiceConfigurationError
+    {
         super();
-        // TODO Auto-generated constructor stub
         
 		if (WEATHER_APPID == null)
 		{
-			throw new Exception("WEATHER_APPID environment variable is not defined!");
+			// TODO - Write a test for this
+			throw new ServiceConfigurationError("WEATHER_APPID environment variable is not defined!");
 		}
     }
 
@@ -69,8 +61,8 @@ public class WeatherServlet extends HttpServlet
 	 * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse response)
 	 */
 	protected void doGet(HttpServletRequest request, HttpServletResponse response)
-			throws ServletException, IOException {
-		// TODO Auto-generated method stub
+			throws ServletException, IOException
+	{
 		response
 			.getWriter()
 			.append("GET: city = ")
@@ -81,21 +73,25 @@ public class WeatherServlet extends HttpServlet
 	 * @see HttpServlet#doPost(HttpServletRequest request, HttpServletResponse response)
 	 */
 	protected void doPost(HttpServletRequest request, HttpServletResponse response)
-			throws ServletException, IOException {
-		
-		getWeather(request.getParameter("city"));
-		// TODO Auto-generated method stub
-		// doGet(request, response);
-		response.setContentType("text/html; charset=UTF-8");
-		response
-		.getWriter()
-		//.append("POST: city = ")
-		//.append(request.getParameter("city"))
-		//.append("\n\n\n")
-		//.append(getWeather(request.getParameter("city")));
-		.append(getResult(getWeather(request.getParameter("city"))));
-		//.append(request.getContextPath());
-
+			throws ServletException, IOException
+	{
+		try
+		{
+			String jsonResult = getWeather(request.getParameter("city"));
+			String htmlResult = getResultHtml(jsonResult);
+			
+			response.setContentType("text/html; charset=UTF-8");
+			response.setContentLength(htmlResult.length());
+			response
+				.getWriter()
+				.append(htmlResult);
+		}
+		catch (IllegalArgumentException e)
+		{
+			System.err.println(request);
+			String message = String.format("Internal Programming Exception: request = %s", request);
+			throw new ServletException(message, e);
+		}
 	}
 	
 	/**
@@ -146,11 +142,11 @@ public class WeatherServlet extends HttpServlet
 	 * }
 	 * 
 	 * According to https://openweathermap.org/current#name the times are defined in unix, UTC 
-	 * @param json
+	 * @param json JSON result to convert to HTML
 	 * @return
 	 * @see https://openweathermap.org/current#name
 	 */
-	String getResult(String json)
+	String getResultHtml(String json)
 	{
 		String htmlFormat =
 				"<!DOCTYPE html>" + 
@@ -193,7 +189,7 @@ public class WeatherServlet extends HttpServlet
 			String sunrise = getSunResult(sysJson, "sunrise", timeZone);
 			String sunset = getSunResult(sysJson, "sunset", timeZone);
 			
-			String description = getWeatherResults(weatherJson);
+			String description = getWeatherDesciptionsResult(weatherJson);
 			
 			return String.format(htmlFormat, cityName, localtime, description, tempFahrenheit, tempCelsius, sunrise, sunset);
 		}
@@ -206,6 +202,9 @@ public class WeatherServlet extends HttpServlet
 	
 	String getCityNameResult(JSONObject jsonObject) throws ParseException
 	{
+		if (jsonObject == null)
+			throw new IllegalArgumentException("jsonObject is null!");
+		
 		String name = (String) jsonObject.get("name");
 		
 		if (name == null)
@@ -220,6 +219,9 @@ public class WeatherServlet extends HttpServlet
 	
 	long getDateTimeResult(JSONObject jsonObject) throws ParseException
 	{
+		if (jsonObject == null)
+			throw new IllegalArgumentException("jsonObject is null!");
+
 		Long dateTime = (Long) jsonObject.get("dt");
 		
 		if (dateTime == null)
@@ -234,6 +236,9 @@ public class WeatherServlet extends HttpServlet
 	
 	String getCountryResult(JSONObject sysJson) throws ParseException
 	{
+		if (sysJson == null)
+			throw new IllegalArgumentException("sysJson is null!");
+
 		String country = (String) sysJson.get("country");
 		
 		if (country == null)
@@ -249,6 +254,12 @@ public class WeatherServlet extends HttpServlet
 	
 	String getLocalTimeResult(long dateTime, TimeZone timeZone)
 	{
+		if (dateTime == 0)
+			throw new IllegalArgumentException("dateTime is 0!");
+
+		if (timeZone == null)
+			throw new IllegalArgumentException("timeZone is null!");
+
 		long localTime = dateTime * 1000;
 		
 	    final DateFormat sdf = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss aa");
@@ -261,6 +272,9 @@ public class WeatherServlet extends HttpServlet
 	
 	double getTemperatureCelsiusResult(JSONObject mainJson) throws ParseException
 	{
+		if (mainJson == null)
+			throw new IllegalArgumentException("mainJson is null!");
+
 		Double temperatureCelsius = (Double) mainJson.get("temp");
 		
 		if (temperatureCelsius == null)
@@ -276,6 +290,15 @@ public class WeatherServlet extends HttpServlet
 	
 	String getSunResult(JSONObject sysJson, String when, TimeZone timeZone) throws ParseException
 	{
+		if (sysJson == null)
+			throw new IllegalArgumentException("sysJson is null!");
+
+		if (when == null)
+			throw new IllegalArgumentException("when is null!");
+
+		if (timeZone == null)
+			throw new IllegalArgumentException("timeZone is null!");
+
 		Long sunWhen = (Long) sysJson.get(when);
 		
 		if (sunWhen == null)
@@ -295,8 +318,11 @@ public class WeatherServlet extends HttpServlet
 		}
 	}
 	
-	String getWeatherResults(JSONArray weatherJson) throws ParseException
+	String getWeatherDesciptionsResult(JSONArray weatherJson) throws ParseException
 	{
+		if (weatherJson == null)
+			throw new IllegalArgumentException("weatherJson is null!");
+
 		// Argh! Functional programming is so much easier in Scala and Kotlin...
 		@SuppressWarnings("unchecked")
 		Stream<String> descriptions =
@@ -314,80 +340,57 @@ public class WeatherServlet extends HttpServlet
 		}
 	}
 	
-	String getWeather(String city) {
+	/**
+	 * Get weather report from api.openweathermap.org
+	 * 
+	 * @param city
+	 * @return json result
+	 */
+	String getWeather(String city)
+	{
+		if (city == null)
+			throw new IllegalArgumentException("city == null");
 		
 		// Using simple old fashion Java HTTP Client
+		// There are better ways of doing this, such as
+		// https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpClient.html
 		
 		String urlString = String.format(
-				"http://api.openweathermap.org/data/2.5/weather?q=%s&APPID=%s",
-				city,
-				WEATHER_APPID);
+			"http://api.openweathermap.org/data/2.5/weather?q=%s&APPID=%s",
+			city,
+			WEATHER_APPID);
 		
 		try {
 			URL url = new URL(urlString);
-		      HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-		      connection.setRequestMethod("GET");
-		      connection.setDoOutput(true);
-		      BufferedReader in = new BufferedReader(
-		        new InputStreamReader(connection.getInputStream()));
-		      String result = in.lines().reduce("", (a, b) -> a + b);
-		      String line;
-		      while ((line = in.readLine()) != null) {
-		         System.out.println(line);
-		      }
-		      in.close();
-		      return result;
+		    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+		    connection.setRequestMethod("GET");
+		    connection.setDoOutput(true);
+		    BufferedReader bufferedReader =
+		    	new BufferedReader(
+		    		new InputStreamReader(
+		    			connection.getInputStream()));
+		    
+		    String result = bufferedReader
+	    			.lines()
+	    			.parallel()
+	    			.collect(Collectors.joining("\n"));
+		    
+		    bufferedReader.close();
+		    
+		    return result;
 
-		} catch (MalformedURLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		    return "ERROR";
-
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
+		}
+		catch (MalformedURLException e)
+		{
+			// TODO handle this better
 			e.printStackTrace();
 		    return "ERROR";
 		}
-	      
-// This is what the code might have looked like using the standard HttpClient in Java 11,
-// but Java EE does not seem to be that up-to-date.
-//		
-//		var uriPattern = "http://api.openweathermap.org/data/2.5/weather?q=city&APPID=4eb93d434ba32f3c222ec1c1544ef92e";
-//		
-//		// Using java.net.http.HttpClient because it is now part of Java 11
-//		// and the standard way of doing things.
-//		// https://openjdk.java.net/groups/net/httpclient/recipes.html
-//		
-//		var uri = uriPattern.replace("city", city);
-//		
-//		// Using synchronous client API for now because it's been a while since I have used
-//		// servlets, and not sure how asynchronous logic works yet. If this were Akka, I would
-//		// have no problem as it's inherently asynchronous and reactive.
-//		
-//		HttpClient client = HttpClient.newBuilder()
-//				.version(Version.HTTP_1_1)
-//				.followRedirects(Redirect.NORMAL)
-//				.connectTimeout(Duration.ofSeconds(20))
-//				//.proxy(ProxySelector.of(new InetSocketAddress("proxy.example.com", 80)))
-//				//.authenticator(Authenticator.getDefault())
-//				.build();
-//		
-//		 HttpRequest request = HttpRequest.newBuilder()
-//		          .uri(URI.create(uri))
-//		          .build();
-//		 
-//		HttpResponse<String> response;
-//		try {
-//			response = client.send(request, BodyHandlers.ofString());
-//			System.out.println(response.statusCode());
-//			System.out.println(response.body());
-//			
-//			return response.body();
-//
-//		} catch (IOException | InterruptedException e) {
-//			// TODO Auto-generated catch block
-//			e.printStackTrace();
-//			return "ERROR";
-//		}
+		catch (IOException e)
+		{
+			// TODO handle this better
+			e.printStackTrace();
+		    return "ERROR";
+		}
     }
 }
